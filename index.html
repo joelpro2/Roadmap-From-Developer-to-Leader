@@ -42,6 +42,16 @@
             text-decoration: line-through;
             color: #6b7280; /* gray-500 */
         }
+        #loader {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+        }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,10 +59,15 @@
 </head>
 <body class="bg-stone-100 text-stone-800">
 
+    <div id="loader" class="flex justify-center items-center">
+        <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
     <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
-        <header class="text-center mb-8">
+        <header class="text-center mb-4">
             <h1 class="text-4xl md:text-5xl font-bold text-blue-900">Your Leadership Journey</h1>
             <p class="mt-2 text-lg text-stone-600">An Interactive Roadmap from Developer to Leader</p>
+            <div id="auth-status" class="mt-2 text-sm text-stone-500">Connecting...</div>
         </header>
 
         <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
@@ -183,169 +198,230 @@
         </main>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const navButtons = document.querySelectorAll('.nav-button');
-            const phaseContents = document.querySelectorAll('.phase-content');
-            const trackButtons = document.querySelectorAll('.track-button');
-            const assessmentTableBody = document.getElementById('assessment-table');
-            const progressBar = document.getElementById('progressBar');
-            const progressText = document.getElementById('progressText');
-            const allTasks = document.querySelectorAll('.task-checkbox');
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-            let chosenTrack = null;
+        const firebaseConfig = {
+            apiKey: "AIzaSyBBs9rnAX_6St8fqwO7avZsBT9KC3VCDTM",
+            authDomain: "interactive-roadmap-app.firebaseapp.com",
+            projectId: "interactive-roadmap-app",
+            storageBucket: "interactive-roadmap-app.firebasestorage.app",
+            messagingSenderId: "451483669116",
+            appId: "1:451483669116:web:d3fc2b89fb6a27ffe62ff9"
+        };
 
-            const assessmentSkills = [
-                { name: 'Facilitation', description: 'Guiding meetings to productive outcomes without dominating them.' },
-                { name: 'Active Listening', description: 'Truly hearing and understanding team members\' concerns and ideas.' },
-                { name: 'Conflict Resolution', description: 'Mediating disagreements to find constructive, positive solutions.' },
-                { name: 'Giving Feedback', description: 'Delivering constructive criticism and praise effectively to foster growth.' },
-                { name: 'Delegation', description: 'Trusting the team and empowering them with ownership.' },
-                { name: 'Strategic Thinking', description: 'Seeing the bigger picture beyond the current sprint or task.' },
-                { name: 'Influencing Others', description: 'Inspiring action and buy-in without relying on formal authority.' }
-            ];
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let userId = null;
+        let dbRef = null;
+
+        const loader = document.getElementById('loader');
+        const authStatus = document.getElementById('auth-status');
+        const navButtons = document.querySelectorAll('.nav-button');
+        const phaseContents = document.querySelectorAll('.phase-content');
+        const trackButtons = document.querySelectorAll('.track-button');
+        const assessmentTableBody = document.getElementById('assessment-table');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const allTasks = document.querySelectorAll('.task-checkbox');
+
+        let chosenTrack = null;
+
+        const assessmentSkills = [
+            { name: 'Facilitation', description: 'Guiding meetings to productive outcomes without dominating them.' },
+            { name: 'Active Listening', description: 'Truly hearing and understanding team members\' concerns and ideas.' },
+            { name: 'Conflict Resolution', description: 'Mediating disagreements to find constructive, positive solutions.' },
+            { name: 'Giving Feedback', description: 'Delivering constructive criticism and praise effectively to foster growth.' },
+            { name: 'Delegation', description: 'Trusting the team and empowering them with ownership.' },
+            { name: 'Strategic Thinking', description: 'Seeing the bigger picture beyond the current sprint or task.' },
+            { name: 'Influencing Others', description: 'Inspiring action and buy-in without relying on formal authority.' }
+        ];
+
+        async function saveProgress() {
+            if (!userId) return;
+            loader.style.display = 'flex';
             
-            function saveProgress() {
-                const skillRatings = {};
-                document.querySelectorAll('.skill-rating-cell.selected').forEach(cell => {
-                    skillRatings[cell.dataset.skill] = cell.dataset.rating;
-                });
-
-                const completedTasks = [];
-                document.querySelectorAll('.task-checkbox:checked').forEach(task => {
-                    completedTasks.push(task.id);
-                });
-
-                const progress = {
-                    skillRatings: skillRatings,
-                    chosenTrack: chosenTrack,
-                    completedTasks: completedTasks
-                };
-
-                localStorage.setItem('roadmapProgress', JSON.stringify(progress));
-            }
-
-            function loadProgress() {
-                const savedProgress = localStorage.getItem('roadmapProgress');
-                if (!savedProgress) return;
-
-                const progress = JSON.parse(savedProgress);
-
-                if (progress.skillRatings) {
-                    for (const skillName in progress.skillRatings) {
-                        const rating = progress.skillRatings[skillName];
-                        const cell = document.querySelector(`.skill-rating-cell[data-skill="${skillName}"][data-rating="${rating}"]`);
-                        if (cell) {
-                            cell.classList.add('selected');
-                        }
-                    }
-                }
-
-                if (progress.chosenTrack) {
-                    const trackButton = document.querySelector(`.track-button[data-track="${progress.chosenTrack}"]`);
-                    if (trackButton) {
-                        trackButton.click();
-                    }
-                }
-                
-                if (progress.completedTasks) {
-                    progress.completedTasks.forEach(taskId => {
-                        const taskCheckbox = document.getElementById(taskId);
-                        if (taskCheckbox) {
-                            taskCheckbox.checked = true;
-                        }
-                    });
-                }
-                updateProgressBar();
-            }
-
-            function populateAssessmentTable() {
-                assessmentSkills.forEach(skill => {
-                    const row = document.createElement('tr');
-                    row.className = 'border-t border-stone-200';
-                    let cells = `<td class="p-3"><p class="font-semibold">${skill.name}</p><p class="text-sm text-stone-500">${skill.description}</p></td>`;
-                    for (let i = 1; i <= 5; i++) {
-                        cells += `<td class="p-3 text-center skill-rating-cell hover:bg-blue-200" data-skill="${skill.name}" data-rating="${i}">${i}</td>`;
-                    }
-                    row.innerHTML = cells;
-                    assessmentTableBody.appendChild(row);
-                });
-
-                document.querySelectorAll('.skill-rating-cell').forEach(cell => {
-                    cell.addEventListener('click', function() {
-                        const skillName = this.dataset.skill;
-                        document.querySelectorAll(`.skill-rating-cell[data-skill="${skillName}"]`).forEach(c => c.classList.remove('selected'));
-                        this.classList.add('selected');
-                        saveProgress();
-                    });
-                });
-            }
-
-            function showPhase(phaseId) {
-                phaseContents.forEach(content => content.classList.remove('active'));
-                navButtons.forEach(button => button.classList.remove('active'));
-
-                document.getElementById(phaseId).classList.add('active');
-                document.querySelector(`.nav-button[data-phase="${phaseId}"]`).classList.add('active');
-            }
-
-            navButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    showPhase(this.dataset.phase);
-                });
+            const skillRatings = {};
+            document.querySelectorAll('.skill-rating-cell.selected').forEach(cell => {
+                skillRatings[cell.dataset.skill] = cell.dataset.rating;
             });
 
-            trackButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    chosenTrack = this.dataset.track;
+            const completedTasks = [];
+            document.querySelectorAll('.task-checkbox:checked').forEach(task => {
+                completedTasks.push(task.id);
+            });
+
+            const progress = {
+                skillRatings: skillRatings,
+                chosenTrack: chosenTrack,
+                completedTasks: completedTasks
+            };
+            
+            try {
+                await setDoc(dbRef, progress, { merge: true });
+            } catch (error) {
+                console.error("Error saving progress: ", error);
+                authStatus.textContent = 'Error saving progress.';
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function loadProgress() {
+            if (!userId) return;
+            loader.style.display = 'flex';
+
+            try {
+                const docSnap = await getDoc(dbRef);
+                if (docSnap.exists()) {
+                    const progress = docSnap.data();
                     
-                    trackButtons.forEach(btn => btn.classList.remove('selected'));
+                    if (progress.skillRatings) {
+                        for (const skillName in progress.skillRatings) {
+                            const rating = progress.skillRatings[skillName];
+                            const cell = document.querySelector(`.skill-rating-cell[data-skill="${skillName}"][data-rating="${rating}"]`);
+                            if (cell) {
+                                cell.classList.add('selected');
+                            }
+                        }
+                    }
+
+                    if (progress.chosenTrack) {
+                        const trackButton = document.querySelector(`.track-button[data-track="${progress.chosenTrack}"]`);
+                        if (trackButton) {
+                            chosenTrack = progress.chosenTrack;
+                            trackButtons.forEach(btn => btn.classList.remove('selected'));
+                            trackButton.classList.add('selected');
+                            document.getElementById('phase2-placeholder').classList.add('hidden');
+                            document.getElementById('phase2-content').classList.remove('hidden');
+                            document.querySelectorAll('.track-content').forEach(content => content.classList.add('hidden'));
+                            document.getElementById(`${chosenTrack}-track`).classList.remove('hidden');
+                        }
+                    }
+                    
+                    if (progress.completedTasks) {
+                        progress.completedTasks.forEach(taskId => {
+                            const taskCheckbox = document.getElementById(taskId);
+                            if (taskCheckbox) {
+                                taskCheckbox.checked = true;
+                            }
+                        });
+                    }
+                    updateProgressBar();
+                } else {
+                    authStatus.textContent = 'Welcome! Start your roadmap to save progress.';
+                }
+            } catch (error) {
+                console.error("Error loading progress: ", error);
+                authStatus.textContent = 'Could not load saved data.';
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function populateAssessmentTable() {
+            assessmentSkills.forEach(skill => {
+                const row = document.createElement('tr');
+                row.className = 'border-t border-stone-200';
+                let cells = `<td class="p-3"><p class="font-semibold">${skill.name}</p><p class="text-sm text-stone-500">${skill.description}</p></td>`;
+                for (let i = 1; i <= 5; i++) {
+                    cells += `<td class="p-3 text-center skill-rating-cell hover:bg-blue-200" data-skill="${skill.name}" data-rating="${i}">${i}</td>`;
+                }
+                row.innerHTML = cells;
+                assessmentTableBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.skill-rating-cell').forEach(cell => {
+                cell.addEventListener('click', function() {
+                    const skillName = this.dataset.skill;
+                    document.querySelectorAll(`.skill-rating-cell[data-skill="${skillName}"]`).forEach(c => c.classList.remove('selected'));
                     this.classList.add('selected');
-
-                    document.getElementById('phase2-placeholder').classList.add('hidden');
-                    document.getElementById('phase2-content').classList.remove('hidden');
-                    
-                    document.querySelectorAll('.track-content').forEach(content => content.classList.add('hidden'));
-                    document.getElementById(`${chosenTrack}-track`).classList.remove('hidden');
-                    
-                    updateProgressBar();
-                    saveProgress();
-                    
-                    setTimeout(() => showPhase('phase2'), 300);
-                });
-            });
-            
-            function updateProgressBar() {
-                const phase2Tasks = chosenTrack ? document.querySelectorAll(`#${chosenTrack}-track .task-checkbox`) : [];
-                const phase3Tasks = document.querySelectorAll('#phase3 .task-checkbox');
-                
-                const relevantTasks = [...phase2Tasks, ...phase3Tasks];
-                const totalTasks = relevantTasks.length;
-                
-                if (totalTasks === 0) {
-                    progressBar.style.width = '0%';
-                    progressText.textContent = '0% Complete';
-                    return;
-                };
-
-                const completedTasks = relevantTasks.filter(task => task.checked).length;
-                const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                
-                progressBar.style.width = `${percentage}%`;
-                progressText.textContent = `${percentage}% Complete`;
-            }
-
-            allTasks.forEach(task => {
-                task.addEventListener('change', () => {
-                    updateProgressBar();
                     saveProgress();
                 });
             });
+        }
 
-            populateAssessmentTable();
-            showPhase('phase1');
-            loadProgress();
+        function showPhase(phaseId) {
+            phaseContents.forEach(content => content.classList.remove('active'));
+            navButtons.forEach(button => button.classList.remove('active'));
+
+            document.getElementById(phaseId).classList.add('active');
+            document.querySelector(`.nav-button[data-phase="${phaseId}"]`).classList.add('active');
+        }
+
+        navButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                showPhase(this.dataset.phase);
+            });
         });
+
+        trackButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                chosenTrack = this.dataset.track;
+                
+                trackButtons.forEach(btn => btn.classList.remove('selected'));
+                this.classList.add('selected');
+
+                document.getElementById('phase2-placeholder').classList.add('hidden');
+                document.getElementById('phase2-content').classList.remove('hidden');
+                
+                document.querySelectorAll('.track-content').forEach(content => content.classList.add('hidden'));
+                document.getElementById(`${chosenTrack}-track`).classList.remove('hidden');
+                
+                updateProgressBar();
+                saveProgress();
+                
+                setTimeout(() => showPhase('phase2'), 300);
+            });
+        });
+        
+        function updateProgressBar() {
+            const phase2Tasks = chosenTrack ? document.querySelectorAll(`#${chosenTrack}-track .task-checkbox`) : [];
+            const phase3Tasks = document.querySelectorAll('#phase3 .task-checkbox');
+            
+            const relevantTasks = [...phase2Tasks, ...phase3Tasks];
+            const totalTasks = relevantTasks.length;
+            
+            if (totalTasks === 0) {
+                progressBar.style.width = '0%';
+                progressText.textContent = '0% Complete';
+                return;
+            };
+
+            const completedTasks = relevantTasks.filter(task => task.checked).length;
+            const percentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+            
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = `${percentage}% Complete`;
+        }
+
+        allTasks.forEach(task => {
+            task.addEventListener('change', () => {
+                updateProgressBar();
+                saveProgress();
+            });
+        });
+        
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                dbRef = doc(db, "userProgress", userId);
+                authStatus.textContent = `Connected! Your progress is saved online.`;
+                loadProgress();
+            } else {
+                signInAnonymously(auth).catch((error) => {
+                    console.error("Anonymous sign-in failed: ", error);
+                    authStatus.textContent = 'Connection failed. Progress will not be saved.';
+                });
+            }
+        });
+
+        populateAssessmentTable();
+        showPhase('phase1');
     </script>
 </body>
 </html>
