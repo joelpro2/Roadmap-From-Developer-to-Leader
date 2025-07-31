@@ -381,10 +381,11 @@
                 cell.addEventListener('click', function() {
                     if (mode === 'readOnly') return;
                     const skillName = this.dataset.skill;
-                    document.querySelectorAll(`.skill-rating-cell[data-skill="${skillName}"]`).forEach(c => c.classList.remove('selected'));
+
                     if(this.classList.contains('selected')) {
                         this.classList.remove('selected');
                     } else {
+                        document.querySelectorAll(`.skill-rating-cell[data-skill="${skillName}"]`).forEach(c => c.classList.remove('selected'));
                         this.classList.add('selected');
                     }
                     saveProgress();
