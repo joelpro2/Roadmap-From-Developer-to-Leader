@@ -6,7 +6,7 @@
     <title>Interactive Roadmap: From Developer to Leader</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chosen Palette: Warm Neutrals -->
-    <!-- Application Structure Plan: The application is structured as a three-part interactive journey, mirroring the roadmap's phases. A tab-based navigation allows users to move between phases without excessive scrolling. This chunking of information enhances focus. Key interactions include a dynamic self-assessment table in Phase 1 where users click to rate themselves, a definitive choice between 'Scrum Master' and 'Team Leader' tracks that conditionally renders the content for Phase 2, and interactive checklists throughout to foster a sense of progress and accomplishment. This structure was chosen to transform a passive document into an active, personalized planning tool, thereby increasing user engagement and the utility of the roadmap. -->
+    <!-- Application Structure Plan: The application is structured as a three-part interactive journey, mirroring the roadmap's phases. A tab-based navigation allows users to move between phases without excessive scrolling. This chunking of information enhances focus. Key interactions include a dynamic self-assessment table in Phase 1 where users click to rate themselves, a definitive choice between 'Scrum Master' and 'Team Leader' tracks that conditionally renders the content for Phase 2, and interactive checklists throughout to foster a sense of progress and accomplishment. A new sharing feature creates a read-only snapshot for others to view. -->
     <!-- Visualization & Content Choices: The roadmap is presented using a combination of interactive components built with HTML, Tailwind CSS, and vanilla JavaScript. Info -> Goal -> Method -> Interaction -> Justification. 1. Self-Assessment -> Inform/Interact -> HTML Table -> JS click events to change cell color -> Provides immediate visual feedback and personalizes the assessment. 2. Phase Progression -> Organize/Navigate -> HTML Buttons -> JS to toggle section visibility -> Creates a clean, single-page app feel without page reloads. 3. Track Selection -> Interact/Filter -> HTML Buttons -> JS to set a state variable and conditionally display content -> Tailors the roadmap to the user's chosen career path. 4. Task Tracking -> Motivate/Track -> HTML Checkboxes -> JS to update a visual progress bar -> Gamifies the process and visually represents completion. All visual elements are created with structured HTML/CSS, adhering to the NO SVG/Mermaid constraint. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -27,6 +27,9 @@
             cursor: pointer;
             transition: background-color 0.2s;
         }
+        .skill-rating-cell.read-only {
+            cursor: default;
+        }
         .skill-rating-cell.selected {
             background-color: #3b82f6; /* blue-500 */
             color: white;
@@ -42,7 +45,7 @@
             text-decoration: line-through;
             color: #6b7280; /* gray-500 */
         }
-        #loader {
+        #loader, #share-modal-overlay {
             display: none;
             position: fixed;
             top: 0;
@@ -51,6 +54,9 @@
             bottom: 0;
             background-color: rgba(255, 255, 255, 0.8);
             z-index: 9999;
+        }
+        #share-modal, #share-menu {
+            display: none;
         }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -62,6 +68,19 @@
     <div id="loader" class="flex justify-center items-center">
         <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
     </div>
+    
+    <div id="share-modal-overlay" class="flex justify-center items-center">
+        <div id="share-modal" class="bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full mx-4">
+            <h3 id="share-modal-title" class="text-2xl font-bold text-stone-800 mb-4">Share Your Progress</h3>
+            <p id="share-modal-text" class="text-stone-600 mb-4">Copy the link below to share a version of your roadmap.</p>
+            <input id="share-link-input" type="text" readonly class="w-full p-2 border border-stone-300 rounded-lg bg-stone-50 mb-4">
+            <div class="flex justify-end gap-4">
+                <button id="copy-share-link" class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">Copy</button>
+                <button id="close-share-modal" class="px-6 py-2 bg-stone-200 text-stone-800 font-semibold rounded-lg hover:bg-stone-300 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
         <header class="text-center mb-4">
@@ -69,10 +88,22 @@
             <p class="mt-2 text-lg text-stone-600">An Interactive Roadmap from Developer to Leader</p>
             <div id="auth-status" class="mt-2 text-sm text-stone-500">Connecting...</div>
         </header>
-
-        <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-3 text-stone-700">Your Progress</h2>
-            <div class="w-full bg-gray-200 rounded-full h-4">
+        
+        <div id="main-controls" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center">
+                 <h2 class="text-xl font-semibold text-stone-700">Your Progress</h2>
+                 <div class="relative">
+                     <button id="share-button-toggle" class="px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm flex items-center">
+                         Share
+                         <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                     </button>
+                     <div id="share-menu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                         <a href="#" id="share-read-only" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100">Share (Read-Only)</a>
+                         <a href="#" id="share-write" class="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100">Share (Write Access)</a>
+                     </div>
+                 </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 mt-3">
                 <div id="progressBar" class="bg-blue-600 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
             <p id="progressText" class="text-right text-sm mt-1 text-stone-500">0% Complete</p>
@@ -140,7 +171,7 @@
                         </div>
                     </section>
 
-                    <section class="text-center bg-blue-50 p-8 rounded-lg">
+                    <section id="path-selection-section" class="text-center bg-blue-50 p-8 rounded-lg">
                         <h3 class="text-2xl font-bold text-blue-800">End of Phase 1 Goal: Choose Your Path</h3>
                         <p class="mt-2 mb-6 text-stone-600">Based on your learning and self-assessment, which role excites you more? Your choice will tailor the next phase of your roadmap.</p>
                         <div class="flex justify-center gap-4">
@@ -201,7 +232,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBBs9rnAX_6St8fqwO7avZsBT9KC3VCDTM",
@@ -218,6 +249,8 @@
 
         let userId = null;
         let dbRef = null;
+        let mode = 'private'; // 'private', 'readOnly', or 'collaborative'
+        let collabId = null;
 
         const loader = document.getElementById('loader');
         const authStatus = document.getElementById('auth-status');
@@ -228,6 +261,20 @@
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
         const allTasks = document.querySelectorAll('.task-checkbox');
+        
+        const shareButtonToggle = document.getElementById('share-button-toggle');
+        const shareMenu = document.getElementById('share-menu');
+        const shareReadOnlyButton = document.getElementById('share-read-only');
+        const shareWriteButton = document.getElementById('share-write');
+        
+        const shareModalOverlay = document.getElementById('share-modal-overlay');
+        const shareModal = document.getElementById('share-modal');
+        const shareModalTitle = document.getElementById('share-modal-title');
+        const shareModalText = document.getElementById('share-modal-text');
+        const shareLinkInput = document.getElementById('share-link-input');
+        const copyShareLinkButton = document.getElementById('copy-share-link');
+        const closeShareModalButton = document.getElementById('close-share-modal');
+
 
         let chosenTrack = null;
 
@@ -241,10 +288,7 @@
             { name: 'Influencing Others', description: 'Inspiring action and buy-in without relying on formal authority.' }
         ];
 
-        async function saveProgress() {
-            if (!userId) return;
-            loader.style.display = 'flex';
-            
+        function getCurrentProgress() {
             const skillRatings = {};
             document.querySelectorAll('.skill-rating-cell.selected').forEach(cell => {
                 skillRatings[cell.dataset.skill] = cell.dataset.rating;
@@ -255,14 +299,27 @@
                 completedTasks.push(task.id);
             });
 
-            const progress = {
+            return {
                 skillRatings: skillRatings,
                 chosenTrack: chosenTrack,
-                completedTasks: completedTasks
+                completedTasks: completedTasks,
+                createdAt: new Date().toISOString()
             };
+        }
+
+        async function saveProgress() {
+            if (mode === 'readOnly') return;
+            loader.style.display = 'flex';
+            
+            const progress = getCurrentProgress();
             
             try {
-                await setDoc(dbRef, progress, { merge: true });
+                if (mode === 'collaborative' && collabId) {
+                    const collabRef = doc(db, "collaborativeProgress", collabId);
+                    await setDoc(collabRef, progress, { merge: true });
+                } else if (mode === 'private' && userId) {
+                    await setDoc(dbRef, progress, { merge: true });
+                }
             } catch (error) {
                 console.error("Error saving progress: ", error);
                 authStatus.textContent = 'Error saving progress.';
@@ -271,56 +328,41 @@
             }
         }
 
-        async function loadProgress() {
-            if (!userId) return;
-            loader.style.display = 'flex';
-
-            try {
-                const docSnap = await getDoc(dbRef);
-                if (docSnap.exists()) {
-                    const progress = docSnap.data();
-                    
-                    if (progress.skillRatings) {
-                        for (const skillName in progress.skillRatings) {
-                            const rating = progress.skillRatings[skillName];
-                            const cell = document.querySelector(`.skill-rating-cell[data-skill="${skillName}"][data-rating="${rating}"]`);
-                            if (cell) {
-                                cell.classList.add('selected');
-                            }
-                        }
+        async function loadProgress(data) {
+            const progress = data;
+            
+            if (progress.skillRatings) {
+                for (const skillName in progress.skillRatings) {
+                    const rating = progress.skillRatings[skillName];
+                    const cell = document.querySelector(`.skill-rating-cell[data-skill="${skillName}"][data-rating="${rating}"]`);
+                    if (cell) {
+                        cell.classList.add('selected');
                     }
-
-                    if (progress.chosenTrack) {
-                        const trackButton = document.querySelector(`.track-button[data-track="${progress.chosenTrack}"]`);
-                        if (trackButton) {
-                            chosenTrack = progress.chosenTrack;
-                            trackButtons.forEach(btn => btn.classList.remove('selected'));
-                            trackButton.classList.add('selected');
-                            document.getElementById('phase2-placeholder').classList.add('hidden');
-                            document.getElementById('phase2-content').classList.remove('hidden');
-                            document.querySelectorAll('.track-content').forEach(content => content.classList.add('hidden'));
-                            document.getElementById(`${chosenTrack}-track`).classList.remove('hidden');
-                        }
-                    }
-                    
-                    if (progress.completedTasks) {
-                        progress.completedTasks.forEach(taskId => {
-                            const taskCheckbox = document.getElementById(taskId);
-                            if (taskCheckbox) {
-                                taskCheckbox.checked = true;
-                            }
-                        });
-                    }
-                    updateProgressBar();
-                } else {
-                    authStatus.textContent = 'Welcome! Start your roadmap to save progress.';
                 }
-            } catch (error) {
-                console.error("Error loading progress: ", error);
-                authStatus.textContent = 'Could not load saved data.';
-            } finally {
-                loader.style.display = 'none';
             }
+
+            if (progress.chosenTrack) {
+                chosenTrack = progress.chosenTrack;
+                const trackButton = document.querySelector(`.track-button[data-track="${chosenTrack}"]`);
+                if (trackButton) {
+                    trackButtons.forEach(btn => btn.classList.remove('selected'));
+                    trackButton.classList.add('selected');
+                    document.getElementById('phase2-placeholder').classList.add('hidden');
+                    document.getElementById('phase2-content').classList.remove('hidden');
+                    document.querySelectorAll('.track-content').forEach(content => content.classList.add('hidden'));
+                    document.getElementById(`${chosenTrack}-track`).classList.remove('hidden');
+                }
+            }
+            
+            if (progress.completedTasks) {
+                progress.completedTasks.forEach(taskId => {
+                    const taskCheckbox = document.getElementById(taskId);
+                    if (taskCheckbox) {
+                        taskCheckbox.checked = true;
+                    }
+                });
+            }
+            updateProgressBar();
         }
 
         function populateAssessmentTable() {
@@ -337,6 +379,7 @@
 
             document.querySelectorAll('.skill-rating-cell').forEach(cell => {
                 cell.addEventListener('click', function() {
+                    if(mode === 'readOnly') return;
                     const skillName = this.dataset.skill;
                     document.querySelectorAll(`.skill-rating-cell[data-skill="${skillName}"]`).forEach(c => c.classList.remove('selected'));
                     this.classList.add('selected');
@@ -361,6 +404,7 @@
 
         trackButtons.forEach(button => {
             button.addEventListener('click', function() {
+                if(mode === 'readOnly') return;
                 chosenTrack = this.dataset.track;
                 
                 trackButtons.forEach(btn => btn.classList.remove('selected'));
@@ -401,27 +445,167 @@
 
         allTasks.forEach(task => {
             task.addEventListener('change', () => {
+                if(mode === 'readOnly') return;
                 updateProgressBar();
                 saveProgress();
             });
         });
         
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                dbRef = doc(db, "userProgress", userId);
-                authStatus.textContent = `Connected! Your progress is saved online.`;
-                loadProgress();
+        function setupReadOnlyMode() {
+            mode = 'readOnly';
+            document.getElementById('main-controls').style.display = 'none';
+            document.getElementById('path-selection-section').style.display = 'none';
+            document.querySelectorAll('.task-checkbox').forEach(cb => cb.disabled = true);
+            document.querySelectorAll('.skill-rating-cell').forEach(cell => cell.classList.add('read-only'));
+            authStatus.textContent = "Viewing a shared roadmap.";
+        }
+        
+        function setupCollaborativeMode() {
+            mode = 'collaborative';
+            document.getElementById('main-controls').style.display = 'none';
+            authStatus.textContent = "You are editing a collaborative roadmap.";
+        }
+
+        async function handlePageLoad() {
+            populateAssessmentTable();
+            showPhase('phase1');
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const snapshotId = urlParams.get('view');
+            collabId = urlParams.get('collab');
+
+            if (snapshotId) {
+                setupReadOnlyMode();
+                loader.style.display = 'flex';
+                try {
+                    const snapshotRef = doc(db, "sharedProgress", snapshotId);
+                    const docSnap = await getDoc(snapshotRef);
+                    if (docSnap.exists()) {
+                        await loadProgress(docSnap.data());
+                    } else {
+                        authStatus.textContent = "Shared roadmap not found.";
+                    }
+                } catch (error) {
+                    console.error("Error loading snapshot:", error);
+                    authStatus.textContent = "Could not load shared roadmap.";
+                } finally {
+                    loader.style.display = 'none';
+                }
+            } else if (collabId) {
+                setupCollaborativeMode();
+                loader.style.display = 'flex';
+                try {
+                    const collabRef = doc(db, "collaborativeProgress", collabId);
+                    const docSnap = await getDoc(collabRef);
+                    if (docSnap.exists()) {
+                        await loadProgress(docSnap.data());
+                    } else {
+                        authStatus.textContent = "Collaborative roadmap not found.";
+                    }
+                } catch (error) {
+                    console.error("Error loading collaborative doc:", error);
+                    authStatus.textContent = "Could not load collaborative roadmap.";
+                } finally {
+                    loader.style.display = 'none';
+                }
             } else {
-                signInAnonymously(auth).catch((error) => {
-                    console.error("Anonymous sign-in failed: ", error);
-                    authStatus.textContent = 'Connection failed. Progress will not be saved.';
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        dbRef = doc(db, "userProgress", userId);
+                        authStatus.textContent = `Connected! Your progress is saved online.`;
+                        loader.style.display = 'flex';
+                        getDoc(dbRef).then(docSnap => {
+                            if (docSnap.exists()) {
+                                loadProgress(docSnap.data());
+                            } else {
+                                authStatus.textContent = 'Welcome! Start your roadmap to save progress.';
+                            }
+                        }).catch(error => {
+                            console.error("Error loading progress: ", error);
+                            authStatus.textContent = 'Could not load saved data.';
+                        }).finally(() => {
+                            loader.style.display = 'none';
+                        });
+                    } else {
+                        signInAnonymously(auth).catch((error) => {
+                            console.error("Anonymous sign-in failed: ", error);
+                            authStatus.textContent = 'Connection failed. Progress will not be saved.';
+                        });
+                    }
                 });
+            }
+        }
+        
+        function openShareModal(title, text, url) {
+            shareModalTitle.textContent = title;
+            shareModalText.textContent = text;
+            shareLinkInput.value = url;
+            shareModalOverlay.style.display = 'flex';
+            shareModal.style.display = 'block';
+        }
+
+        shareReadOnlyButton.addEventListener('click', async (e) => {
+            e.preventDefault();
+            shareMenu.style.display = 'none';
+            loader.style.display = 'flex';
+            const progress = getCurrentProgress();
+            try {
+                const docRef = await addDoc(collection(db, "sharedProgress"), progress);
+                const snapshotId = docRef.id;
+                const shareUrl = `${window.location.origin}${window.location.pathname}?view=${snapshotId}`;
+                openShareModal('Share Read-Only Link', 'Anyone with this link can view a snapshot of your progress.', shareUrl);
+            } catch (error) {
+                console.error("Error creating read-only share link: ", error);
+                alert("Could not create share link. Please try again.");
+            } finally {
+                loader.style.display = 'none';
+            }
+        });
+        
+        shareWriteButton.addEventListener('click', async (e) => {
+            e.preventDefault();
+            shareMenu.style.display = 'none';
+            loader.style.display = 'flex';
+            const progress = getCurrentProgress();
+            try {
+                const docRef = await addDoc(collection(db, "collaborativeProgress"), progress);
+                const collabId = docRef.id;
+                const shareUrl = `${window.location.origin}${window.location.pathname}?collab=${collabId}`;
+                openShareModal('Share Write Access Link', 'Anyone with this link can edit this version of the roadmap.', shareUrl);
+            } catch (error) {
+                console.error("Error creating write access share link: ", error);
+                alert("Could not create share link. Please try again.");
+            } finally {
+                loader.style.display = 'none';
             }
         });
 
-        populateAssessmentTable();
-        showPhase('phase1');
+        closeShareModalButton.addEventListener('click', () => {
+            shareModalOverlay.style.display = 'none';
+            shareModal.style.display = 'none';
+        });
+
+        copyShareLinkButton.addEventListener('click', () => {
+            shareLinkInput.select();
+            document.execCommand('copy');
+            copyShareLinkButton.textContent = 'Copied!';
+            setTimeout(() => {
+                copyShareLinkButton.textContent = 'Copy';
+            }, 2000);
+        });
+        
+        shareButtonToggle.addEventListener('click', () => {
+            shareMenu.style.display = shareMenu.style.display === 'block' ? 'none' : 'block';
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!shareButtonToggle.contains(e.target) && !shareMenu.contains(e.target)) {
+                shareMenu.style.display = 'none';
+            }
+        });
+
+        handlePageLoad();
     </script>
 </body>
 </html>
